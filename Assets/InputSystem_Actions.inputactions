@@ -74,7 +74,7 @@
                 {
                     "name": "",
                     "id": "7f775888-a01c-4dee-a62c-c4fe2ac6dd4f",
-                    "path": "<Keyboard>/a",
+                    "path": "<Keyboard>/leftArrow",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -85,7 +85,7 @@
                 {
                     "name": "",
                     "id": "defcab08-e036-488f-81f7-48b18d6424ef",
-                    "path": "<Keyboard>/upArrow",
+                    "path": "<Keyboard>/space",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -96,7 +96,7 @@
                 {
                     "name": "",
                     "id": "6b4b1609-b947-40b9-b38d-1377667e1585",
-                    "path": "<Keyboard>/d",
+                    "path": "<Keyboard>/rightArrow",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -107,7 +107,7 @@
                 {
                     "name": "",
                     "id": "186ab09b-6d12-4bcd-974b-f754336da040",
-                    "path": "<Keyboard>/rightShift",
+                    "path": "<Keyboard>/upArrow",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -118,7 +118,7 @@
                 {
                     "name": "",
                     "id": "2cc55980-aa02-4005-8c97-9be6aa3bf46d",
-                    "path": "<Keyboard>/s",
+                    "path": "<Keyboard>/downArrow",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -129,7 +129,7 @@
                 {
                     "name": "",
                     "id": "4402c9d3-7d5f-4991-b042-c97f9619beb9",
-                    "path": "<Keyboard>/leftArrow",
+                    "path": "<Keyboard>/u",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
@@ -140,7 +140,7 @@
                 {
                     "name": "",
                     "id": "7c804e87-711b-4a88-b78c-79d84b35dd21",
-                    "path": "<Keyboard>/rightArrow",
+                    "path": "<Keyboard>/i",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
