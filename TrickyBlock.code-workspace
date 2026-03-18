@@ -1,0 +1,38 @@
+{
+  "folders": [
+    {
+      "path": "Assets/Scripts",
+      "name": "Scripts"
+    },
+    {
+      "path": ".",
+      "name": "All Files"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "Library/": true,
+      "Temp/": true,
+      "Build/": true,
+      "obj/": true,
+      "**/*.meta": true
+    },
+    "files.watcherExclude": {
+      "**/Library/**": true,
+      "**/Temp/**": true,
+      "**/Build/**": true,
+      "**/obj/**": true,
+      "**/*.meta": true
+    },
+    "editor.formatOnSave": true
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csharp",
+      "Unity.unity-debug",
+      "Unity.unity-code-snippets",
+      "kleber-swf.unity-tools",
+      "streetsidesoftware.code-spell-checker"
+    ]
+  }
+}
