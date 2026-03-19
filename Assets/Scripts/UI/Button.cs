@@ -1,9 +1,17 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using DG.Tweening;
+using UnityEngine.SceneManagement;
 
 public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler, IPointerClickHandler
 {
+    private enum ButtonActionType
+    {
+        Play,
+        Options,
+        Quit
+    }
+
     [Header("Idle")]
     [SerializeField] private float idleAmplitude = 8f;
     [SerializeField] private float idleDuration = 1.6f;
@@ -20,11 +28,24 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
     [SerializeField] private float clickDuration = 0.22f;
     [SerializeField] private float clickRotationPunch = 5f;
 
+    [Header("Action")]
+    [SerializeField] private ButtonActionType actionType = ButtonActionType.Play;
+
+    [Header("Play Settings")]
+    [SerializeField] private string sceneToLoad;
+
+    [Header("Options Settings")]
+    [SerializeField] private RectTransform optionsPanel;
+    [SerializeField] private float optionsSlideLeftAmount = 300f;
+    [SerializeField] private float optionsSlideDuration = 0.35f;
+    [SerializeField] private Ease optionsSlideEase = Ease.OutCubic;
+
     private RectTransform rectTransform;
     private Tween idleTween;
     private Tween scaleTween;
     private Tween clickTween;
     private Tween clickRotationTween;
+    private Tween optionsSlideTween;
     private Vector2 baseAnchoredPosition;
     private bool isHovered;
     private bool isSelected;
@@ -88,6 +109,44 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         scaleTween?.Kill();
         clickTween?.Kill();
         clickRotationTween?.Kill();
+        optionsSlideTween?.Kill();
+    }
+
+    private void ExecuteAction()
+    {
+        switch (actionType)
+        {
+            case ButtonActionType.Play:
+                if (string.IsNullOrWhiteSpace(sceneToLoad))
+                {
+                    Debug.LogWarning($"[{nameof(Buttons)}] No scene name set for Play action on {name}.");
+                    return;
+                }
+
+                SceneManager.LoadScene(sceneToLoad);
+                break;
+
+            case ButtonActionType.Options:
+                if (optionsPanel == null)
+                {
+                    Debug.LogWarning($"[{nameof(Buttons)}] No options panel assigned for Options action on {name}.");
+                    return;
+                }
+
+                optionsSlideTween?.Kill();
+                optionsSlideTween = optionsPanel
+                    .DOAnchorPosX(optionsPanel.anchoredPosition.x - optionsSlideLeftAmount, optionsSlideDuration)
+                    .SetEase(optionsSlideEase);
+                break;
+
+            case ButtonActionType.Quit:
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
+                break;
+        }
     }
 
     public void OnPointerEnter(PointerEventData eventData)
@@ -126,6 +185,10 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         clickRotationTween = transform
             .DOPunchRotation(new Vector3(0f, 0f, clickRotationPunch), clickDuration, 8, 0.65f)
             .SetEase(Ease.OutQuad)
-            .OnComplete(AnimateToCurrentState);
+            .OnComplete(() =>
+            {
+                AnimateToCurrentState();
+                ExecuteAction();
+            });
     }
 }
