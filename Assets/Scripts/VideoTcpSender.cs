@@ -54,8 +54,8 @@ public class CrossVideoNetworkManager : MonoBehaviour
     private Thread tcpSendConnectionThread;
     private Thread tcpReceiveConnectionThread;
 
-    private float nextSendConnectionAttempt = 0f;
-    private float nextReceiveConnectionAttempt = 0f;
+    private DateTime nextSendConnectionAttempt = DateTime.Now;
+    private DateTime nextReceiveConnectionAttempt = DateTime.Now;
 
     // Etat partagé
     private bool isRunning = true;
@@ -171,10 +171,10 @@ public class CrossVideoNetworkManager : MonoBehaviour
         {
             if (sendClient == null || !sendClient.Connected)
             {
-                if (Time.time >= nextSendConnectionAttempt)
+                if (DateTime.Now >= nextSendConnectionAttempt)
                 {
                     ConnectSendSocket();
-                    nextSendConnectionAttempt = Time.time + reconnectionDelay;
+                    nextSendConnectionAttempt = DateTime.Now.AddSeconds(reconnectionDelay);
                 }
             }
             Thread.Sleep(100); // Petit délai pour ne pas bloquer
@@ -187,10 +187,10 @@ public class CrossVideoNetworkManager : MonoBehaviour
         {
             if (receiveClient == null || !receiveClient.Connected)
             {
-                if (Time.time >= nextReceiveConnectionAttempt)
+                if (DateTime.Now >= nextReceiveConnectionAttempt)
                 {
                     ConnectReceiveSocket();
-                    nextReceiveConnectionAttempt = Time.time + reconnectionDelay;
+                    nextReceiveConnectionAttempt = DateTime.Now.AddSeconds(reconnectionDelay);
                 }
             }
             Thread.Sleep(100); // Petit délai pour ne pas bloquer
@@ -235,12 +235,12 @@ public class CrossVideoNetworkManager : MonoBehaviour
                 sendClient = null;
             }
 
-            lastSendConnectionAttempt = Time.time;
+            lastSendConnectionAttempt = (float)DateTime.Now.TimeOfDay.TotalSeconds;
         }
         catch (Exception e)
         {
             Debug.LogWarning($"[CrossVideoNetworkManager] Send connection failed: {e.Message}");
-            lastSendConnectionAttempt = Time.time;
+            lastSendConnectionAttempt = (float)DateTime.Now.TimeOfDay.TotalSeconds;
         }
     }
 

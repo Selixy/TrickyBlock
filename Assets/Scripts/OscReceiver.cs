@@ -142,4 +142,71 @@ public class OscReceiver : MonoBehaviour
             case "/p1/drop": OnDrop?.Invoke(); break;
         }
     }
+
+    /// <summary>
+    /// Permet de définir l'IP serveur dynamiquement
+    /// </summary>
+    public void SetServerIP(string newIP)
+    {
+        if (string.IsNullOrWhiteSpace(newIP))
+        {
+            targetIp = "";
+            filterAddress = IPAddress.Loopback;
+            Debug.Log($"[OSC] IP réinitialisée au mode local (127.0.0.1)");
+        }
+        else
+        {
+            if (IPAddress.TryParse(newIP, out IPAddress parsed))
+            {
+                targetIp = newIP;
+                filterAddress = parsed;
+                Debug.Log($"[OSC] IP serveur définie à: {newIP}");
+            }
+            else
+            {
+                Debug.LogWarning($"[OSC] Format IP invalide: {newIP}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Retourne l'IP serveur actuelle
+    /// </summary>
+    public string GetServerIP()
+    {
+        return string.IsNullOrWhiteSpace(targetIp) ? "127.0.0.1" : targetIp;
+    }
+
+    /// <summary>
+    /// Reçoit des données de scène et recrée les objets correspondants
+    /// </summary>
+    public void OnReceiveSceneData(string data)
+    {
+        // Exemple de données reçues : "Cube|0,0,0|0,0,0"
+        string[] parts = data.Split('|');
+        if (parts.Length != 3) return;
+
+        string name = parts[0];
+        Vector3 position = ParseVector3(parts[1]);
+        Vector3 rotation = ParseVector3(parts[2]);
+
+        // Créer un nouvel objet dans la scène
+        GameObject obj = new GameObject(name);
+        obj.transform.position = position;
+        obj.transform.rotation = Quaternion.Euler(rotation);
+
+        Debug.Log($"Objet recréé : {name} à la position {position}");
+    }
+
+    Vector3 ParseVector3(string vectorString)
+    {
+        string[] values = vectorString.Split(',');
+        if (values.Length != 3) return Vector3.zero;
+
+        return new Vector3(
+            float.Parse(values[0]),
+            float.Parse(values[1]),
+            float.Parse(values[2])
+        );
+    }
 }

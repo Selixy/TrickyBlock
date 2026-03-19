@@ -79,12 +79,23 @@ public class SceneStreamCapture : MonoBehaviour
         captureWidth = Mathf.Max((int)(captureHeight * sourceAspectRatio), 64);
 
         renderTexture = new RenderTexture(captureWidth, captureHeight, 24);
-        captureCamera.targetTexture = renderTexture;
+
+        if (captureCamera != null)
+        {
+            captureCamera.targetTexture = renderTexture;
+        }
 
         screenTexture = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
 
         isCapturing = true;
-        Debug.Log($"[SceneStreamCapture] ✓ Capture started: {captureWidth}x{captureHeight}, camera: {captureCamera.name}");
+        if (captureCamera != null)
+        {
+            Debug.Log($"[SceneStreamCapture] ✓ Capture started: {captureWidth}x{captureHeight}, camera: {captureCamera.name}");
+        }
+        else
+        {
+            Debug.Log($"[SceneStreamCapture] ✓ Capture started: {captureWidth}x{captureHeight}");
+        }
     }
 
     void Update()
@@ -128,6 +139,18 @@ public class SceneStreamCapture : MonoBehaviour
     }
     void CaptureAndDisplay()
     {
+        // Vérifier que la caméra existe toujours
+        if (captureCamera == null)
+        {
+            captureCamera = FindObjectOfType<Camera>();
+            if (captureCamera == null)
+            {
+                Debug.LogWarning("[SceneStreamCapture] Camera not found, cannot capture");
+                isCapturing = false;
+                return;
+            }
+        }
+
         // Rendre à la RenderTexture
         RenderTexture.active = renderTexture;
 
@@ -162,7 +185,10 @@ public class SceneStreamCapture : MonoBehaviour
         // Nettoyer les ressources
         if (renderTexture != null)
         {
-            captureCamera.targetTexture = null;
+            if (captureCamera != null)
+            {
+                captureCamera.targetTexture = null;
+            }
             RenderTexture.active = null;
             Destroy(renderTexture);
         }
@@ -171,5 +197,7 @@ public class SceneStreamCapture : MonoBehaviour
         {
             Destroy(screenTexture);
         }
+
+        isCapturing = false;
     }
 }

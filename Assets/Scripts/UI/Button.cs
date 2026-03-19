@@ -9,7 +9,9 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
     {
         Play,
         Options,
-        Quit
+        Quit,
+        LoadGame,
+        LoadLobby
     }
 
     [Header("Idle")]
@@ -145,6 +147,28 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
 #else
                 Application.Quit();
 #endif
+                break;
+
+            case ButtonActionType.LoadGame:
+                if (SceneLoader.Instance != null)
+                {
+                    SceneLoader.Instance.LoadGameScene();
+                }
+                else
+                {
+                    Debug.LogError($"[{nameof(Buttons)}] SceneLoader instance not found!");
+                }
+                break;
+
+            case ButtonActionType.LoadLobby:
+                if (SceneLoader.Instance != null)
+                {
+                    SceneLoader.Instance.LoadLobbyScene();
+                }
+                else
+                {
+                    Debug.LogError($"[{nameof(Buttons)}] SceneLoader instance not found!");
+                }
                 break;
         }
     }
