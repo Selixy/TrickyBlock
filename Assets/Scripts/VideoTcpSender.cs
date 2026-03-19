@@ -10,9 +10,11 @@ public class CrossVideoNetworkManager : MonoBehaviour
 {
     public enum PlayerRole { Player1, Player2 }
 
+    // === SINGLETON POUR ACCÈS GLOBAL ===
+    public static CrossVideoNetworkManager Instance { get; private set; }
+
     [Header("Identité du Client")]
     public PlayerRole role = PlayerRole.Player1;
-    public RawImage displayOtherPlayer;
 
     [Header("Network Settings")]
     public string rustServerIP = "127.0.0.1";
@@ -23,6 +25,12 @@ public class CrossVideoNetworkManager : MonoBehaviour
     public int height = 480;
     public int fps = 30;
     [Range(10, 100)] public int jpegQuality = 50;
+
+    // === ÉVÉNEMENTS POUR LES SCÈNES ADDITIVES ===
+    public delegate void OnVideoFrameReceived(byte[] jpegData, float cropX);
+    public static event OnVideoFrameReceived OnPlayer1VideoReceived;
+    public static event OnVideoFrameReceived OnPlayer2VideoReceived;
+    public static event OnVideoFrameReceived OnMyVideoCapture; // Pour déboguer sa propre caméra
 
     // Déductions Automatiques des Ports
     private int MySendPort => (role == PlayerRole.Player1) ? 8080 : 8082;
@@ -51,10 +59,22 @@ public class CrossVideoNetworkManager : MonoBehaviour
 
     // Valeur de crop de l'ADVERSAIRE reçue de Rust (0.0 à 1.0)
     [SerializeField] private float otherPlayerCropX = 0.5f;
-    
+
     [Header("Crop Settings")]
     public float cropHeightRatio = 1.0f; // 100% de la hauteur
     public float cropWidthRatio = 0.625f; // 10:16 standard (62.5% de la largeur)
+
+    void Awake()
+    {
+        // Singleton pattern
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
 
     void Start()
     {
@@ -76,22 +96,32 @@ public class CrossVideoNetworkManager : MonoBehaviour
 
     void Update()
     {
-        // --- AFFICHAGE DE LA CAMÉRA ADVERSE ---
+        // --- ENVOI DES DONNÉES AUX SCÈNES ADDITIVES VIA ÉVÉNEMENTS ---
         if (hasNewJpeg && latestReceivedJpeg != null)
         {
             hasNewJpeg = false;
-            UpdateReceivedTexture();
-        }
 
-        // --- RECADRAGE DE LA CAMÉRA ADVERSE ---
-        ApplyCropRect();
+            Debug.Log($"[CrossVideoNetworkManager] Dispatching video for role: {role}, cropX: {otherPlayerCropX}");
+
+            // Dispatcher l'événement selon le rôle du joueur actuel
+            if (role == PlayerRole.Player1)
+            {
+                Debug.Log("Invoking OnPlayer2VideoReceived");
+                OnPlayer2VideoReceived?.Invoke(latestReceivedJpeg, otherPlayerCropX);
+            }
+            else
+            {
+                Debug.Log("Invoking OnPlayer1VideoReceived");
+                OnPlayer1VideoReceived?.Invoke(latestReceivedJpeg, otherPlayerCropX);
+            }
+        }
     }
 
     void UpdateReceivedTexture()
     {
         // Créer une nouvelle texture avec les bonnes dimensions
         Texture2D newTexture = new Texture2D(2, 2, TextureFormat.RGB24, false);
-        
+
         if (newTexture.LoadImage(latestReceivedJpeg))
         {
             // Remplacer l'ancienne texture
@@ -99,15 +129,9 @@ public class CrossVideoNetworkManager : MonoBehaviour
             {
                 Destroy(currentDisplayTexture);
             }
-            
+
             currentDisplayTexture = newTexture;
-            
-            // Assigner à la RawImage
-            if (displayOtherPlayer != null)
-            {
-                displayOtherPlayer.texture = currentDisplayTexture;
-            }
-            
+
             Debug.Log($"Texture loaded: {newTexture.width}x{newTexture.height}");
         }
         else
@@ -118,22 +142,8 @@ public class CrossVideoNetworkManager : MonoBehaviour
 
     void ApplyCropRect()
     {
-        if (displayOtherPlayer == null || displayOtherPlayer.texture == null)
-            return;
-
-        // Calculer la position de crop en centrant sur otherPlayerCropX
-        // otherPlayerCropX = 0.0 à 1.0 (position du joueur dans l'image)
-        // On veut afficher cropWidthRatio (ex: 62.5%) centré sur cette position
-        
-        float startX = Mathf.Clamp(
-            otherPlayerCropX - (cropWidthRatio / 2f), 
-            0f, 
-            1f - cropWidthRatio
-        );
-        
-        // Appliquer le rect de crop (x, y, width, height)
-        // La hauteur reste toujours 1.0f (full height)
-        displayOtherPlayer.uvRect = new Rect(startX, 0f, cropWidthRatio, cropHeightRatio);
+        // Cette méthode n'est plus nécessaire ici
+        // Le crop est géré par les classes UI dans les scènes additives
     }
 
     // ==========================================================
@@ -146,6 +156,11 @@ public class CrossVideoNetworkManager : MonoBehaviour
         {
             myWebcam = new WebCamTexture(devices[0].name, width, height, fps);
             myWebcam.Play();
+            Debug.Log($"[CrossVideoNetworkManager] Webcam initialized: {devices[0].name} ({width}x{height}@{fps}fps)");
+        }
+        else
+        {
+            Debug.LogError("[CrossVideoNetworkManager] No webcam device found!");
         }
     }
 
@@ -162,39 +177,98 @@ public class CrossVideoNetworkManager : MonoBehaviour
 
     IEnumerator SendVideoRoutine()
     {
+        // Attendre que la webcam soit prête
+        int waitCount = 0;
+        while (myWebcam == null || !myWebcam.isPlaying)
+        {
+            waitCount++;
+            if (waitCount > 50)
+            {
+                Debug.LogError("[CrossVideoNetworkManager] Webcam failed to start!");
+                yield break;
+            }
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        Debug.Log("[CrossVideoNetworkManager] Webcam ready, starting capture");
+
+        // Attendre quelques frames supplémentaires que la webcam remplisse son buffer
+        for (int i = 0; i < 10; i++)
+        {
+            yield return new WaitForEndOfFrame();
+        }
+
         Texture2D tex = new Texture2D(myWebcam.width, myWebcam.height, TextureFormat.RGB24, false);
+        int frameCount = 0;
+
         while (isRunning)
         {
             yield return new WaitForEndOfFrame();
 
-            if (sendClient == null || !sendClient.Connected)
+            if (myWebcam == null || !myWebcam.isPlaying)
             {
-                if (Time.time - lastSendConnectionAttempt >= reconnectionDelay)
-                    ConnectSendSocket();
-                continue;
+                Debug.LogWarning("[CrossVideoNetworkManager] Webcam stopped!");
+                yield break;
             }
 
-            if (myWebcam.didUpdateThisFrame)
+            // Essayer de capturer la webcam
+            try
             {
-                tex.SetPixels(myWebcam.GetPixels());
+                Color[] pixels = myWebcam.GetPixels();
+
+                if (pixels == null || pixels.Length == 0)
+                {
+                    Debug.LogWarning("[CrossVideoNetworkManager] No pixels from webcam yet");
+                    continue;
+                }
+
+                tex.SetPixels(pixels);
                 tex.Apply();
                 byte[] jpegBytes = tex.EncodeToJPG(jpegQuality);
 
-                int size = jpegBytes.Length;
-                byte[] sizeBytes = BitConverter.GetBytes(size);
-                if (BitConverter.IsLittleEndian) Array.Reverse(sizeBytes);
+                if (jpegBytes.Length > 0)
+                {
+                    frameCount++;
 
-                try
-                {
-                    sendStream.Write(sizeBytes, 0, sizeBytes.Length);
-                    sendStream.Write(jpegBytes, 0, jpegBytes.Length);
+                    // Envoyer au serveur si connecté
+                    if (sendClient != null && sendClient.Connected)
+                    {
+                        try
+                        {
+                            int size = jpegBytes.Length;
+                            byte[] sizeBytes = BitConverter.GetBytes(size);
+                            if (BitConverter.IsLittleEndian) Array.Reverse(sizeBytes);
+
+                            sendStream.Write(sizeBytes, 0, sizeBytes.Length);
+                            sendStream.Write(jpegBytes, 0, jpegBytes.Length);
+                        }
+                        catch (Exception e)
+                        {
+                            Debug.LogWarning($"[CrossVideoNetworkManager] Send error: {e.Message}");
+                            if (sendStream != null) sendStream.Close();
+                            if (sendClient != null) sendClient.Close();
+                            sendClient = null;
+                        }
+                    }
+
+                    // TOUJOURS dispatcher l'événement local (pour l'affichage debug)
+                    OnMyVideoCapture?.Invoke(jpegBytes, 0.5f);
+
+                    if (frameCount % 30 == 0)
+                    {
+                        Debug.Log($"[CrossVideoNetworkManager] Captured {frameCount} frames, JPEG size: {jpegBytes.Length} bytes");
+                    }
                 }
-                catch
-                {
-                    if (sendStream != null) sendStream.Close();
-                    if (sendClient != null) sendClient.Close();
-                    sendClient = null;
-                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[CrossVideoNetworkManager] Capture error: {e.Message}");
+            }
+
+            // Essayer de reconnecter si pas connecté
+            if ((sendClient == null || !sendClient.Connected) && Time.time - lastSendConnectionAttempt >= reconnectionDelay)
+            {
+                ConnectSendSocket();
             }
         }
     }
@@ -302,7 +376,7 @@ public class CrossVideoNetworkManager : MonoBehaviour
 
         if (myWebcam != null) myWebcam.Stop();
         if (udpListener != null) udpListener.Close();
-        
+
         // Libérer la texture affichée
         if (currentDisplayTexture != null) Destroy(currentDisplayTexture);
     }
