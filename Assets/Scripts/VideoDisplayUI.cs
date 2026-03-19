@@ -62,7 +62,6 @@ public class VideoDisplayUI : MonoBehaviour
             CrossVideoNetworkManager.OnMyVideoCapture -= OnVideoReceived;
         }
     }
-
     void OnVideoReceived(byte[] jpegData, float cropX)
     {
         Debug.Log($"[VideoDisplayUI] OnVideoReceived called for {targetPlayer} - data size: {jpegData?.Length ?? 0}");
