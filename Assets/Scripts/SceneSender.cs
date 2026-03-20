@@ -1,40 +1,87 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class SceneSender : MonoBehaviour
 {
-    public OscSender oscSender; // Référence à l'OscSender
+    [SerializeField] private float sendInterval = 0.033f;
+    private float lastSendTime = 0f;
+    private OscSender oscSender;
+
+    [System.Serializable]
+    public class SceneObject
+    {
+        public string name;
+        public Vector3 position;
+        public Vector3 rotation;
+        public Vector3 scale;
+    }
+
+    [System.Serializable]
+    public class SceneData
+    {
+        public List<SceneObject> objects = new List<SceneObject>();
+    }
 
     void Start()
     {
+        // Trouver OscSender dans la scène additive
         if (oscSender == null)
         {
-            Debug.LogError("OscSender n'est pas assigné !");
-            return;
+            oscSender = FindObjectOfType<OscSender>();
+            if (oscSender == null)
+            {
+                Debug.LogError("[SceneSender] OscSender not found in scene!");
+                return;
+            }
+            Debug.Log("[SceneSender] OscSender found automatically");
         }
+    }
 
-        // Exemple : Envoyer la scène toutes les 5 secondes
-        InvokeRepeating(nameof(SendSceneData), 0f, 5f);
+    void Update()
+    {
+        if (Time.time - lastSendTime >= sendInterval)
+        {
+            SendSceneData();
+            lastSendTime = Time.time;
+        }
     }
 
     void SendSceneData()
     {
-        // Collecter les données des objets dans la scène
-        var objects = FindObjectsOfType<Transform>();
-        foreach (var obj in objects)
+        SceneData sceneData = new SceneData();
+
+        // Envoyer les PIÈCES (les objets avec le script Piece)
+        var pieces = FindObjectsOfType<Piece>();
+        foreach (var piece in pieces)
         {
-            if (obj.CompareTag("Sendable")) // Filtrer les objets à envoyer
+            sceneData.objects.Add(new SceneObject
             {
-                string data = SerializeObjectData(obj);
-                oscSender.Send("/sceneData", data); // Envoyer les données via OSC
-            }
+                name = piece.gameObject.name,
+                position = piece.transform.position,
+                rotation = piece.transform.eulerAngles,
+                scale = piece.transform.localScale
+            });
         }
 
-        Debug.Log("Données de la scène envoyées.");
-    }
+        // Envoyer aussi la CAMÉRA (pour la capture texture)
+        var camera = FindObjectOfType<Camera>();
+        if (camera != null)
+        {
+            sceneData.objects.Add(new SceneObject
+            {
+                name = camera.gameObject.name,
+                position = camera.transform.position,
+                rotation = camera.transform.eulerAngles,
+                scale = camera.transform.localScale
+            });
+        }
 
-    string SerializeObjectData(Transform obj)
-    {
-        // Sérialiser les données de l'objet (position, rotation, etc.)
-        return $"{obj.name}|{obj.position.x},{obj.position.y},{obj.position.z}|{obj.rotation.eulerAngles.x},{obj.rotation.eulerAngles.y},{obj.rotation.eulerAngles.z}";
+        if (sceneData.objects.Count == 0)
+            return;
+
+        string json = JsonUtility.ToJson(sceneData);
+        oscSender.Send("/scene", json);
+
+        Debug.Log($"[SceneSender] Envoyé {sceneData.objects.Count} objets (pièces + caméra)");
     }
 }

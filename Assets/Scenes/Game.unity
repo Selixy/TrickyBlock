@@ -599,6 +599,7 @@ GameObject:
   - component: {fileID: 1370101420}
   - component: {fileID: 1370101422}
   - component: {fileID: 1370101421}
+  - component: {fileID: 1370101423}
   m_Layer: 5
   m_Name: P2game
   m_TagString: Untagged
@@ -660,6 +661,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1370101419}
   m_CullTransparentMesh: 1
+--- !u!114 &1370101423
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1370101419}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f0464e0c6b168d4da13f302bcb351fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SceneReconstructor
+  oscReceiver: {fileID: 0}
+  additiveSceneName: ReconstructedScene
 --- !u!1 &1648229484
 GameObject:
   m_ObjectHideFlags: 0

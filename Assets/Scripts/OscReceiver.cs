@@ -20,13 +20,18 @@ public class OscReceiver : MonoBehaviour
     public event System.Action OnFastFallStop;
     public event System.Action OnDrop;
 
+    // Event pour les données de scène
+    public event System.Action<string> OnSceneDataReceived;
+
     private UdpClient udpClient;
     private Thread receiveThread;
     private volatile bool running = false;
 
     private volatile string lastAddress = "";
     private volatile float lastValue = 0f;
+    private volatile string lastStringValue = "";
     private volatile bool hasNewData = false;
+    private volatile bool isStringData = false;
     private volatile string lastSenderIp = "";
     private volatile int lastSenderPort = 0;
 
@@ -101,6 +106,33 @@ public class OscReceiver : MonoBehaviour
         int offset = ((i / 4) + 1) * 4;
         offset += 4;
 
+        isStringData = false;
+
+        // Essayer de parser comme string d'abord (pour /scene)
+        if (offset < data.Length)
+        {
+            int stringEnd = offset;
+            while (stringEnd < data.Length && data[stringEnd] != 0) stringEnd++;
+
+            if (stringEnd > offset)
+            {
+                try
+                {
+                    string str = System.Text.Encoding.UTF8.GetString(data, offset, stringEnd - offset);
+                    if (!string.IsNullOrEmpty(str))
+                    {
+                        lastStringValue = str;
+                        lastAddress = address;
+                        isStringData = true;
+                        hasNewData = true;
+                        return;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // Sinon parser comme float
         if (offset + 4 <= data.Length)
         {
             byte[] floatBytes = new byte[4]
@@ -114,6 +146,7 @@ public class OscReceiver : MonoBehaviour
 
             lastAddress = address;
             lastValue = value;
+            isStringData = false;
             hasNewData = true;
         }
     }
@@ -124,6 +157,13 @@ public class OscReceiver : MonoBehaviour
     {
         if (!hasNewData) return;
         hasNewData = false;
+
+        if (isStringData)
+        {
+            Debug.Log($"[OSC] {lastSenderIp}:{lastSenderPort} — '{lastAddress}' = JSON ({lastStringValue.Length} chars)");
+            OnSceneDataReceived?.Invoke(lastStringValue);
+            return;
+        }
 
         Debug.Log($"[OSC] {lastSenderIp}:{lastSenderPort} — '{lastAddress}' = {lastValue}");
 
@@ -175,6 +215,22 @@ public class OscReceiver : MonoBehaviour
     public string GetServerIP()
     {
         return string.IsNullOrWhiteSpace(targetIp) ? "127.0.0.1" : targetIp;
+    }
+
+    /// <summary>
+    /// Retourne l'IP du dernier sender qui a envoyé un message OSC
+    /// </summary>
+    public string GetLastSenderIP()
+    {
+        return lastSenderIp;
+    }
+
+    /// <summary>
+    /// Retourne le port du dernier sender
+    /// </summary>
+    public int GetLastSenderPort()
+    {
+        return lastSenderPort;
     }
 
     /// <summary>

@@ -173,6 +173,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2127562360}
   - component: {fileID: 2127562361}
+  - component: {fileID: 2127562363}
   - component: {fileID: 2127562362}
   m_Layer: 0
   m_Name: Network
@@ -222,12 +223,30 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e35bc95527cde9348b11ab9bd15f5823, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VideoTcpSender
-  serverIP: 127.0.0.1
-  serverPort: 8080
+  role: 0
+  rustServerIP: 127.0.0.1
+  reconnectionDelay: 3
+  connectionTimeoutMS: 2000
   width: 640
   height: 480
   fps: 30
   jpegQuality: 50
+  otherPlayerCropX: 0.5
+  cropHeightRatio: 1
+  cropWidthRatio: 0.625
+--- !u!114 &2127562363
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127562359}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3dfe39337a6393449fbb0e862842038, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OscSender
+  port: 9000
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

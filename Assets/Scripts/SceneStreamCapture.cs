@@ -1,29 +1,19 @@
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
 
-public class SceneStreamCapture : MonoBehaviour
+public class SceneStreamCapture : SceneCaptureBase
 {
     [Header("Scene")]
-    public string sceneToCapture = "GameScene"; // Seul paramètre à renseigner
-
-    // Tout le reste est automatique
-    private Texture2D screenTexture;
-    private RenderTexture renderTexture;
-    private bool isCapturing = false;
-    private Camera captureCamera;
-    private RawImage displayImage;
-    private int captureWidth;
-    private int captureHeight;
+    public string sceneToCapture = "GameScene";
 
     void Start()
     {
         Debug.Log($"[SceneStreamCapture] Loading scene: {sceneToCapture}");
-        StartCoroutine(LoadSceneAndCapture());
+        StartCoroutine(LoadSceneAndInitialize());
     }
 
-    IEnumerator LoadSceneAndCapture()
+    IEnumerator LoadSceneAndInitialize()
     {
         // Charger la scène en mode additive
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneToCapture, LoadSceneMode.Additive);
@@ -39,132 +29,21 @@ public class SceneStreamCapture : MonoBehaviour
         // Attendre que tout soit initialisé
         yield return new WaitForSeconds(0.5f);
 
-        // Trouver automatiquement la caméra de la scène chargée
-        captureCamera = Camera.main;
+        // Initialiser la capture
+        InitializeScene();
+        InitializeCapture();
+    }
 
-        // Si pas de Main Camera, chercher n'importe quelle caméra
-        if (captureCamera == null)
-        {
-            captureCamera = FindObjectOfType<Camera>();
-        }
-
-        if (captureCamera == null)
-        {
-            Debug.LogError("[SceneStreamCapture] No Camera found!");
-            yield break;
-        }
-
-        // Récupérer la RawImage sur le même GameObject que ce script
-        displayImage = GetComponent<RawImage>();
-        if (displayImage == null)
-        {
-            Debug.LogError("[SceneStreamCapture] No RawImage found on this GameObject!");
-            yield break;
-        }
-
-        Debug.Log($"[SceneStreamCapture] RawImage found on {gameObject.name}");
-
-        // Calculer les dimensions basées sur la RawImage
-        RectTransform rectTransform = displayImage.GetComponent<RectTransform>();
-        float rawImageHeight = rectTransform.rect.height;
-        float rawImageWidth = rectTransform.rect.width;
-
-        // Garder le ratio de la texture source
-        float sourceAspectRatio = 16f / 9f; // Ratio par défaut
-
-        // Calculer la hauteur de capture = hauteur de la RawImage
-        captureHeight = Mathf.Max((int)rawImageHeight, 64);
-
-        // Calculer la largeur pour garder le ratio
-        captureWidth = Mathf.Max((int)(captureHeight * sourceAspectRatio), 64);
-
-        renderTexture = new RenderTexture(captureWidth, captureHeight, 24);
-
-        if (captureCamera != null)
-        {
-            captureCamera.targetTexture = renderTexture;
-        }
-
-        screenTexture = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
-
-        isCapturing = true;
-        if (captureCamera != null)
-        {
-            Debug.Log($"[SceneStreamCapture] ✓ Capture started: {captureWidth}x{captureHeight}, camera: {captureCamera.name}");
-        }
-        else
-        {
-            Debug.Log($"[SceneStreamCapture] ✓ Capture started: {captureWidth}x{captureHeight}");
-        }
+    protected override void InitializeScene()
+    {
+        // La scène est chargée depuis un fichier, rien à faire ici
+        Debug.Log("[SceneStreamCapture] Scene loaded from file");
     }
 
     void Update()
     {
-        if (!isCapturing || screenTexture == null || captureCamera == null)
-            return;
-
         CaptureAndDisplay();
         ApplyCrop();
-    }
-
-    void ApplyCrop()
-    {
-        if (displayImage == null || displayImage.texture == null)
-            return;
-
-        // Récupérer le ratio de la RawImage (UI)
-        RectTransform rectTransform = displayImage.GetComponent<RectTransform>();
-        if (rectTransform == null)
-            return;
-
-        float uiWidth = rectTransform.rect.width;
-        float uiHeight = rectTransform.rect.height;
-
-        if (uiHeight <= 0)
-            return;
-
-        float uiAspectRatio = uiWidth / uiHeight;
-
-        // Ratio de la texture
-        float textureAspectRatio = (float)captureWidth / captureHeight;
-
-        // Calculer le crop pour remplir la hauteur, cropper la largeur si nécessaire
-        float cropWidth = Mathf.Min(1f, uiAspectRatio / textureAspectRatio);
-
-        // Centrer le crop horizontalement
-        float startX = (1f - cropWidth) / 2f;
-
-        // Appliquer le crop
-        displayImage.uvRect = new Rect(startX, 0f, cropWidth, 1f);
-    }
-    void CaptureAndDisplay()
-    {
-        // Vérifier que la caméra existe toujours
-        if (captureCamera == null)
-        {
-            captureCamera = FindObjectOfType<Camera>();
-            if (captureCamera == null)
-            {
-                Debug.LogWarning("[SceneStreamCapture] Camera not found, cannot capture");
-                isCapturing = false;
-                return;
-            }
-        }
-
-        // Rendre à la RenderTexture
-        RenderTexture.active = renderTexture;
-
-        // Lire les pixels de la RenderTexture
-        screenTexture.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
-        screenTexture.Apply();
-
-        RenderTexture.active = null;
-
-        // Assigner la texture à la RawImage si elle existe
-        if (displayImage != null)
-        {
-            displayImage.texture = screenTexture;
-        }
     }
 
     public byte[] GetCurrentFrameAsJPEG()
@@ -172,32 +51,11 @@ public class SceneStreamCapture : MonoBehaviour
         if (screenTexture == null)
             return null;
 
-        return screenTexture.EncodeToJPG(50); // Qualité fixe
+        return screenTexture.EncodeToJPG(50);
     }
 
     public Texture2D GetScreenTexture()
     {
         return screenTexture;
-    }
-
-    void OnDestroy()
-    {
-        // Nettoyer les ressources
-        if (renderTexture != null)
-        {
-            if (captureCamera != null)
-            {
-                captureCamera.targetTexture = null;
-            }
-            RenderTexture.active = null;
-            Destroy(renderTexture);
-        }
-
-        if (screenTexture != null)
-        {
-            Destroy(screenTexture);
-        }
-
-        isCapturing = false;
     }
 }
