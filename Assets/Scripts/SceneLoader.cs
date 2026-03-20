@@ -5,6 +5,6 @@ public class SceneLoader : MonoBehaviour
 {
     private void Start()
     {
-        SceneManager.LoadScene("RunUp", LoadSceneMode.Additive);
+        SceneManager.LoadScene("Game", LoadSceneMode.Additive);
     }
 }
