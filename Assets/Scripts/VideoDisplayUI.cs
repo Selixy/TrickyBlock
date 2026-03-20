@@ -8,6 +8,9 @@ public class VideoDisplayUI : MonoBehaviour
     [Header("Configuration")]
     public PlayerRole targetPlayer = PlayerRole.Player1;
 
+    [Header("Display Options")]
+    public bool mirrorCamera = false; // Activer pour afficher l'image en miroir
+
     private Texture2D currentTexture = null;
     private float currentCropX = 0.5f;
     private RectTransform rectTransform = null;
@@ -62,7 +65,6 @@ public class VideoDisplayUI : MonoBehaviour
             CrossVideoNetworkManager.OnMyVideoCapture -= OnVideoReceived;
         }
     }
-
     void OnVideoReceived(byte[] jpegData, float cropX)
     {
         Debug.Log($"[VideoDisplayUI] OnVideoReceived called for {targetPlayer} - data size: {jpegData?.Length ?? 0}");
@@ -143,8 +145,17 @@ public class VideoDisplayUI : MonoBehaviour
             1f - cropWidthRatio
         );
 
-        // Appliquer le rect de crop (x, y, width, height)
-        displayImage.uvRect = new Rect(startX, 0f, cropWidthRatio, 1.0f);
+        // Appliquer le miroir si activé
+        if (mirrorCamera)
+        {
+            // Miroir horizontal : inverser la largeur et ajuster la position
+            displayImage.uvRect = new Rect(startX + cropWidthRatio, 0f, -cropWidthRatio, 1.0f);
+        }
+        else
+        {
+            // Affichage normal
+            displayImage.uvRect = new Rect(startX, 0f, cropWidthRatio, 1.0f);
+        }
     }
 
     float GetScreenAspectRatio()

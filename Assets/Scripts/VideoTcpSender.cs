@@ -19,6 +19,7 @@ public class CrossVideoNetworkManager : MonoBehaviour
     [Header("Network Settings")]
     public string rustServerIP = "127.0.0.1";
     public float reconnectionDelay = 3f;
+    public int connectionTimeoutMS = 2000; // 2 secondes de timeout
 
     [Header("Capture Settings (Ma Caméra)")]
     public int width = 640;
@@ -50,6 +51,11 @@ public class CrossVideoNetworkManager : MonoBehaviour
     private UdpClient udpListener;
     private Thread udpThread;
     private Thread tcpReceiveThread;
+    private Thread tcpSendConnectionThread;
+    private Thread tcpReceiveConnectionThread;
+
+    private DateTime nextSendConnectionAttempt = DateTime.Now;
+    private DateTime nextReceiveConnectionAttempt = DateTime.Now;
 
     // Etat partagé
     private bool isRunning = true;
@@ -80,17 +86,27 @@ public class CrossVideoNetworkManager : MonoBehaviour
     {
         isRunning = true;
 
-        // 1. Initialiser et envoyer MA vidéo
+        // 1. Initialiser la webcam
         InitWebcam();
-        ConnectSendSocket();
+
+        // 2. Démarrer les threads de connexion (non-bloquants)
+        tcpSendConnectionThread = new Thread(SendConnectionThread);
+        tcpSendConnectionThread.IsBackground = true;
+        tcpSendConnectionThread.Start();
+
+        tcpReceiveConnectionThread = new Thread(ReceiveConnectionThread);
+        tcpReceiveConnectionThread.IsBackground = true;
+        tcpReceiveConnectionThread.Start();
+
+        // 3. Démarrer la coroutine d'envoi (pour la webcam)
         StartCoroutine(SendVideoRoutine());
 
-        // 2. Écouter la vidéo de L'AUTRE
-        ConnectReceiveSocket();
+        // 4. Démarrer le thread de réception
         tcpReceiveThread = new Thread(ReceiveVideoThread);
+        tcpReceiveThread.IsBackground = true;
         tcpReceiveThread.Start();
 
-        // 3. Écouter mon OSC (le recadrage que je dois appliquer sur l'autre)
+        // 5. Écouter mon OSC (le recadrage que je dois appliquer sur l'autre)
         StartUdpListener();
     }
 
@@ -149,6 +165,38 @@ public class CrossVideoNetworkManager : MonoBehaviour
     // ==========================================================
     // MODULE: SEND MY WEBCAM
     // ==========================================================
+    void SendConnectionThread()
+    {
+        while (isRunning)
+        {
+            if (sendClient == null || !sendClient.Connected)
+            {
+                if (DateTime.Now >= nextSendConnectionAttempt)
+                {
+                    ConnectSendSocket();
+                    nextSendConnectionAttempt = DateTime.Now.AddSeconds(reconnectionDelay);
+                }
+            }
+            Thread.Sleep(100); // Petit délai pour ne pas bloquer
+        }
+    }
+
+    void ReceiveConnectionThread()
+    {
+        while (isRunning)
+        {
+            if (receiveClient == null || !receiveClient.Connected)
+            {
+                if (DateTime.Now >= nextReceiveConnectionAttempt)
+                {
+                    ConnectReceiveSocket();
+                    nextReceiveConnectionAttempt = DateTime.Now.AddSeconds(reconnectionDelay);
+                }
+            }
+            Thread.Sleep(100); // Petit délai pour ne pas bloquer
+        }
+    }
+
     void InitWebcam()
     {
         WebCamDevice[] devices = WebCamTexture.devices;
@@ -168,11 +216,32 @@ public class CrossVideoNetworkManager : MonoBehaviour
     {
         try
         {
-            sendClient = new TcpClient(rustServerIP, MySendPort);
-            sendStream = sendClient.GetStream();
-            lastSendConnectionAttempt = Time.time;
+            sendClient = new TcpClient();
+            sendClient.ReceiveTimeout = connectionTimeoutMS;
+            sendClient.SendTimeout = connectionTimeoutMS;
+
+            // Connexion asynchrone avec timeout
+            IAsyncResult result = sendClient.BeginConnect(rustServerIP, MySendPort, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(connectionTimeoutMS, true);
+
+            if (success && sendClient.Connected)
+            {
+                sendStream = sendClient.GetStream();
+                Debug.Log($"[CrossVideoNetworkManager] Connected to send socket {MySendPort}");
+            }
+            else
+            {
+                sendClient.Close();
+                sendClient = null;
+            }
+
+            lastSendConnectionAttempt = (float)DateTime.Now.TimeOfDay.TotalSeconds;
         }
-        catch { lastSendConnectionAttempt = Time.time; }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[CrossVideoNetworkManager] Send connection failed: {e.Message}");
+            lastSendConnectionAttempt = (float)DateTime.Now.TimeOfDay.TotalSeconds;
+        }
     }
 
     IEnumerator SendVideoRoutine()
@@ -264,12 +333,6 @@ public class CrossVideoNetworkManager : MonoBehaviour
             {
                 Debug.LogError($"[CrossVideoNetworkManager] Capture error: {e.Message}");
             }
-
-            // Essayer de reconnecter si pas connecté
-            if ((sendClient == null || !sendClient.Connected) && Time.time - lastSendConnectionAttempt >= reconnectionDelay)
-            {
-                ConnectSendSocket();
-            }
         }
     }
 
@@ -280,54 +343,91 @@ public class CrossVideoNetworkManager : MonoBehaviour
     {
         try
         {
-            receiveClient = new TcpClient(rustServerIP, MyReceivePort);
-            receiveStream = receiveClient.GetStream();
+            receiveClient = new TcpClient();
+            receiveClient.ReceiveTimeout = connectionTimeoutMS;
+            receiveClient.SendTimeout = connectionTimeoutMS;
+
+            // Connexion asynchrone avec timeout
+            IAsyncResult result = receiveClient.BeginConnect(rustServerIP, MyReceivePort, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(connectionTimeoutMS, true);
+
+            if (success && receiveClient.Connected)
+            {
+                receiveStream = receiveClient.GetStream();
+                Debug.Log($"[CrossVideoNetworkManager] Connected to receive socket {MyReceivePort}");
+            }
+            else
+            {
+                receiveClient.Close();
+                receiveClient = null;
+            }
         }
-        catch { }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[CrossVideoNetworkManager] Receive connection failed: {e.Message}");
+        }
     }
 
     void ReceiveVideoThread()
     {
         while (isRunning)
         {
-            if (receiveClient == null || !receiveClient.Connected)
-            {
-                Thread.Sleep(1000);
-                ConnectReceiveSocket();
-                continue;
-            }
-
             try
             {
+                if (receiveClient == null || !receiveClient.Connected)
+                {
+                    Thread.Sleep(100); // Short sleep to avoid spinning
+                    continue;
+                }
+
                 byte[] sizeBuffer = new byte[4];
                 int bytesRead = 0;
-                while (bytesRead < 4)
+                while (bytesRead < 4 && isRunning)
                 {
                     int read = receiveStream.Read(sizeBuffer, bytesRead, 4 - bytesRead);
                     if (read == 0) throw new Exception("Disconnected");
                     bytesRead += read;
                 }
 
+                if (!isRunning) break;
+
                 if (BitConverter.IsLittleEndian) Array.Reverse(sizeBuffer);
                 int imageSize = BitConverter.ToInt32(sizeBuffer, 0);
 
                 byte[] imageBytes = new byte[imageSize];
                 bytesRead = 0;
-                while (bytesRead < imageSize)
+                while (bytesRead < imageSize && isRunning)
                 {
                     int read = receiveStream.Read(imageBytes, bytesRead, imageSize - bytesRead);
                     if (read == 0) throw new Exception("Disconnected");
                     bytesRead += read;
                 }
 
+                if (!isRunning) break;
+
                 latestReceivedJpeg = imageBytes;
                 hasNewJpeg = true;
             }
-            catch
+            catch (Exception e)
             {
-                if (receiveStream != null) receiveStream.Close();
-                if (receiveClient != null) receiveClient.Close();
+                if (isRunning)
+                {
+                    Debug.LogWarning($"[CrossVideoNetworkManager] ReceiveVideoThread error: {e.Message}");
+                }
+
+                try
+                {
+                    if (receiveStream != null) receiveStream.Close();
+                    if (receiveClient != null) receiveClient.Close();
+                }
+                catch { }
+
                 receiveClient = null;
+
+                if (isRunning)
+                {
+                    Thread.Sleep(1000);
+                }
             }
         }
     }
