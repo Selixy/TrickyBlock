@@ -2,20 +2,28 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using DG.Tweening;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, ISelectHandler, IDeselectHandler, IPointerClickHandler
 {
     private enum ButtonActionType
     {
+        None,
         Play,
         Options,
-        Quit
+        Quit,
+        LoadGame,
+        LoadLobby
     }
 
     [Header("Idle")]
     [SerializeField] private float idleAmplitude = 8f;
     [SerializeField] private float idleDuration = 1.6f;
     [SerializeField] private Ease idleEase = Ease.InOutSine;
+
+    [Header("Animation Target")]
+    [SerializeField] private Transform animationTarget;
+    [SerializeField] private bool autoUseFirstChildInLayout = true;
 
     [Header("State Scale")]
     [SerializeField] private float normalScale = 1f;
@@ -29,7 +37,7 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
     [SerializeField] private float clickRotationPunch = 5f;
 
     [Header("Action")]
-    [SerializeField] private ButtonActionType actionType = ButtonActionType.Play;
+    [SerializeField] private ButtonActionType actionType = ButtonActionType.None;
 
     [Header("Play Settings")]
     [SerializeField] private string sceneToLoad;
@@ -41,20 +49,32 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
     [SerializeField] private Ease optionsSlideEase = Ease.OutCubic;
 
     private RectTransform rectTransform;
+    private RectTransform animationTargetRectTransform;
+    private Transform activeAnimationTarget;
     private Tween idleTween;
     private Tween scaleTween;
     private Tween clickTween;
     private Tween clickRotationTween;
     private Tween optionsSlideTween;
     private Vector2 baseAnchoredPosition;
+    private Quaternion baseLocalRotation;
     private bool isHovered;
     private bool isSelected;
+    private bool canAnimateAnchoredPosition;
 
     private void Awake()
     {
         rectTransform = transform as RectTransform;
-        baseAnchoredPosition = rectTransform != null ? rectTransform.anchoredPosition : Vector2.zero;
-        transform.localScale = Vector3.one * normalScale;
+        activeAnimationTarget = ResolveAnimationTarget();
+        animationTargetRectTransform = activeAnimationTarget as RectTransform;
+
+        bool isInLayout = IsInLayoutGroup();
+        bool targetIsButtonRoot = activeAnimationTarget == transform;
+        canAnimateAnchoredPosition = animationTargetRectTransform != null && (!isInLayout || !targetIsButtonRoot);
+
+        baseAnchoredPosition = animationTargetRectTransform != null ? animationTargetRectTransform.anchoredPosition : Vector2.zero;
+        baseLocalRotation = activeAnimationTarget.localRotation;
+        activeAnimationTarget.localScale = Vector3.one * normalScale;
         StartIdleTween();
     }
 
@@ -72,13 +92,13 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
     {
         idleTween?.Kill();
 
-        if (rectTransform == null)
+        if (!canAnimateAnchoredPosition || animationTargetRectTransform == null)
         {
             return;
         }
 
-        rectTransform.anchoredPosition = baseAnchoredPosition;
-        idleTween = rectTransform
+        animationTargetRectTransform.anchoredPosition = baseAnchoredPosition;
+        idleTween = animationTargetRectTransform
             .DOAnchorPosY(baseAnchoredPosition.y + idleAmplitude, idleDuration)
             .SetEase(idleEase)
             .SetLoops(-1, LoopType.Yoyo);
@@ -98,9 +118,29 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         }
 
         scaleTween?.Kill();
-        scaleTween = transform
+        scaleTween = activeAnimationTarget
             .DOScale(targetScale, stateDuration)
             .SetEase(Ease.OutQuad);
+    }
+
+    private Transform ResolveAnimationTarget()
+    {
+        if (animationTarget != null)
+        {
+            return animationTarget;
+        }
+
+        if (autoUseFirstChildInLayout && IsInLayoutGroup() && transform.childCount > 0)
+        {
+            return transform.GetChild(0);
+        }
+
+        return transform;
+    }
+
+    private bool IsInLayoutGroup()
+    {
+        return GetComponentInParent<LayoutGroup>() != null;
     }
 
     private void KillTweens()
@@ -110,6 +150,16 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         clickTween?.Kill();
         clickRotationTween?.Kill();
         optionsSlideTween?.Kill();
+
+        if (canAnimateAnchoredPosition && animationTargetRectTransform != null)
+        {
+            animationTargetRectTransform.anchoredPosition = baseAnchoredPosition;
+        }
+
+        if (activeAnimationTarget != null)
+        {
+            activeAnimationTarget.localRotation = baseLocalRotation;
+        }
     }
 
     private void ExecuteAction()
@@ -146,6 +196,28 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
                 Application.Quit();
 #endif
                 break;
+
+            case ButtonActionType.LoadGame:
+                if (SceneLoader.Instance != null)
+                {
+                    SceneLoader.Instance.LoadGameScene();
+                }
+                else
+                {
+                    Debug.LogError($"[{nameof(Buttons)}] SceneLoader instance not found!");
+                }
+                break;
+
+            case ButtonActionType.LoadLobby:
+                if (SceneLoader.Instance != null)
+                {
+                    SceneLoader.Instance.LoadLobbyScene();
+                }
+                else
+                {
+                    Debug.LogError($"[{nameof(Buttons)}] SceneLoader instance not found!");
+                }
+                break;
         }
     }
 
@@ -178,11 +250,11 @@ public class Buttons : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
         clickTween?.Kill();
         clickRotationTween?.Kill();
 
-        clickTween = transform
+        clickTween = activeAnimationTarget
             .DOPunchScale(Vector3.one * clickPunchScale, clickDuration, 8, 0.65f)
             .SetEase(Ease.OutQuad);
 
-        clickRotationTween = transform
+        clickRotationTween = activeAnimationTarget
             .DOPunchRotation(new Vector3(0f, 0f, clickRotationPunch), clickDuration, 8, 0.65f)
             .SetEase(Ease.OutQuad)
             .OnComplete(() =>

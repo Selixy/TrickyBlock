@@ -9,6 +9,9 @@ public class ButtonsEditor : Editor
     private SerializedProperty idleDuration;
     private SerializedProperty idleEase;
 
+    private SerializedProperty animationTarget;
+    private SerializedProperty autoUseFirstChildInLayout;
+
     private SerializedProperty normalScale;
     private SerializedProperty hoverScale;
     private SerializedProperty selectedScale;
@@ -31,6 +34,9 @@ public class ButtonsEditor : Editor
         idleAmplitude = serializedObject.FindProperty("idleAmplitude");
         idleDuration = serializedObject.FindProperty("idleDuration");
         idleEase = serializedObject.FindProperty("idleEase");
+
+        animationTarget = serializedObject.FindProperty("animationTarget");
+        autoUseFirstChildInLayout = serializedObject.FindProperty("autoUseFirstChildInLayout");
 
         normalScale = serializedObject.FindProperty("normalScale");
         hoverScale = serializedObject.FindProperty("hoverScale");
@@ -60,6 +66,12 @@ public class ButtonsEditor : Editor
         EditorGUILayout.PropertyField(idleEase);
 
         EditorGUILayout.Space();
+        EditorGUILayout.LabelField("Animation Target", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(animationTarget);
+        EditorGUILayout.PropertyField(autoUseFirstChildInLayout);
+        EditorGUILayout.HelpBox("For buttons inside a LayoutGroup, animate a child visual instead of the root to avoid layout conflicts.", MessageType.Info);
+
+        EditorGUILayout.Space();
         EditorGUILayout.LabelField("State Scale", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(normalScale);
         EditorGUILayout.PropertyField(hoverScale);
@@ -78,13 +90,18 @@ public class ButtonsEditor : Editor
 
         switch (actionType.enumValueIndex)
         {
-            case 0: // Play
+            case 0: // None
+                EditorGUILayout.Space();
+                EditorGUILayout.HelpBox("No action will be executed on click. Click animation remains active.", MessageType.Info);
+                break;
+
+            case 1: // Play
                 EditorGUILayout.Space();
                 EditorGUILayout.LabelField("Play Settings", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(sceneToLoad);
                 break;
 
-            case 1: // Options
+            case 2: // Options
                 EditorGUILayout.Space();
                 EditorGUILayout.LabelField("Options Settings", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(optionsPanel);
@@ -93,9 +110,19 @@ public class ButtonsEditor : Editor
                 EditorGUILayout.PropertyField(optionsSlideEase);
                 break;
 
-            case 2: // Quit
+            case 3: // Quit
                 EditorGUILayout.Space();
                 EditorGUILayout.HelpBox("No additional settings are required for Quit.", MessageType.Info);
+                break;
+
+            case 4: // LoadGame
+                EditorGUILayout.Space();
+                EditorGUILayout.HelpBox("Loads the game scene using SceneLoader.", MessageType.Info);
+                break;
+
+            case 5: // LoadLobby
+                EditorGUILayout.Space();
+                EditorGUILayout.HelpBox("Loads the lobby scene using SceneLoader.", MessageType.Info);
                 break;
         }
 

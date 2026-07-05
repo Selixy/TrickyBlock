@@ -8,12 +8,12 @@ public class PlayerControl : MonoBehaviour
     [SerializeField] private string resourcesFolder = "Pieces";
 
     [Header("Spawn")]
-    [SerializeField] private Transform spawnParent;
     [SerializeField] private float fallSpeed = 4f;
     [SerializeField] private float spawnHeightOffset = 10f;
     [SerializeField] private float raycastSpread = 10f;
     [SerializeField] private float raycastStep = 0.25f;
     [SerializeField] private float raycastDistance = 200f;
+    private Transform spawnParent;
 
     [Header("Déplacement joueur")]
     [SerializeField] private float stepSize = 0.5f;
